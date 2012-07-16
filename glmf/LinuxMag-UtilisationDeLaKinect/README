@@ -1,0 +1,44 @@
+1/ Dépendances
+--------------
+OpenCV, OpenNI, Nite et cmake doivent être installés pour la compilation.
+
+2/ Compilation
+--------------
+Il y a deux solutions. Premièrement, utiliser cmake:
+$ mkdir build
+$ cd build
+$ cmake ..
+$ make
+
+Ou alors, en éxécutant cette ligne dans un shell:
+$ gcc main.c -std=gnu99 `pkg-config --cflags --libs opencv` -I /usr/include/ni -lOpenNI -o main
+
+3/ Éxécuter le programme
+------------------------
+Il faut lancer dans un shell le programme nommé 'main':
+$ ./main
+
+Le programme affiche deux fenêtres:
+- une pour les images en couleur, et
+- une pour les images de profondeur.
+
+Pour quitter le programme, il faut appuyer sur la touche 'q'.
+
+4/ Petit rappel 
+---------------
+Les dernières versions du noyau Linux sont fournies avec un driver 
+pour la caméra couleur de la Kinect qui est incompatible avec le 
+module SensorKinect. Il faut soit décharger le module gspca_kinect :
+
+$ lsmod | grep gspca_kinect
+gspca_kinect           12792  0
+gspca_main             27610  1 gspca_kinect
+$ sudo rmmod gspca_kinect
+
+soit le « blacklister » avant d'utiliser la Kinect avec OpenNI:
+
+$ sudo su
+# echo "blacklist gspca_kinect" >> /etc/modprobe.d/blacklist.conf
+
+Ainsi, le module concurrent pour la Kinect ne sera plus chargé au
+prochain démarrage.

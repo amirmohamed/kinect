@@ -1,0 +1,11 @@
+
+== Kinect project repos
+
+Directories description
+    glmf: GLMF tutorial and first shot on kinect hacking
+    viewer: Simplified version of programs mentionned above, just display depth data with opencv
+    HandTracking: Perform a complete mouse control through Nite (no cmake support yet)
+    HandSegment: Intend to improve hand gesture recognition (not yet built)
+
+Note: Built process depends on OpenNi and Nite libraries location, be sure to adapt makefiles or CMakeLists.txt 
+
