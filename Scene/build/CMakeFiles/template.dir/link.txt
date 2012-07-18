@@ -1,0 +1,1 @@
+/usr/bin/c++       CMakeFiles/template.dir/main.cpp.o  -o template -rdynamic -lOpenNI 

@@ -3,36 +3,15 @@
 // General headers
 #include <stdio.h>
 // External headers
-#include "lib/XEventsEmulation.cpp"
-#include "lib/cvCompute.h"
 // OpenNI headers
 #include <XnOpenNI.h>
 // NITE headers
 #include <XnVSessionManager.h>
 #include <XnVWaveDetector.h>
-#include <XnVPushDetector.h>
-// OpenCV
-//#include <highgui.h>
-//#include <cv.h>
 
 // xml to initialize OpenNI
 #define SAMPLE_XML_FILE "./data/Sample-Tracking.xml"
 #define SAMPLE_XML_FILE_LOCAL "Sample-Tracking.xml"
-#define DEPTH_WINDOW "Depth"
-
-// Global
-//typedef struct output output;
-struct position {
-    float x;
-    float y;
-    float z;
-    int time;
-    float confidence;
-    int left_clicked;
-    int right_clicked;
-} hand;
-
-xn::DepthGenerator g_depthGenerator;
 
 //-----------------------------------------------------------------------------
 // Callbacks/
@@ -57,23 +36,11 @@ void XN_CALLBACK_TYPE SessionEnd(void* UserCxt)
 void XN_CALLBACK_TYPE OnWaveCB(void* cxt)
 {
 	printf("Wave!\n");
-    hand.right_clicked = 1;
-}
-// Callback for Push detection
-void XN_CALLBACK_TYPE Push_Pushed(XnFloat fVelocity, XnFloat fAngle, void* cxt) {
-    printf("Push!\n");
-    hand.left_clicked = 1;
 }
 // callback for a new position of any hand
 void XN_CALLBACK_TYPE OnPointUpdate(const XnVHandPointContext* pContext, void* cxt)
 {
-	//printf("%d: (%f,%f,%f) [%f]\n", pContext->nID, pContext->ptPosition.X, pContext->ptPosition.Y, pContext->ptPosition.Z, pContext->fTime);
-    //printf("%d: ", pContext->nID);
-    hand.x = pContext->ptPosition.X;
-    hand.y = pContext->ptPosition.Y;
-    hand.z = pContext->ptPosition.Z;
-    hand.time = pContext->fTime;
-    hand.confidence = pContext->fConfidence;
+	printf("%d: (%f,%f,%f) [%f]\n", pContext->nID, pContext->ptPosition.X, pContext->ptPosition.Y, pContext->ptPosition.Z, pContext->fTime);
 }
 
 //-----------------------------------------------------------------------------
@@ -113,22 +80,12 @@ int main(int argc, char** argv)
     // Create the Session Manager
     pSessionGenerator = new XnVSessionManager();
     rc = ((XnVSessionManager*)pSessionGenerator)->Initialize(&context, "Click,Wave", "RaiseHand");
-    if (rc != XN_STATUS_OK)
+    if (rc != XN_STATUS_OK) 
     {
         printf("Session Manager couldn't initialize: %s\n", xnGetStatusString(rc));
         delete pSessionGenerator;
         return 1;
     }
-
-    // Depth drawing
-    rc = context.FindExistingNode(XN_NODE_TYPE_DEPTH, g_depthGenerator);
-    if ( rc != XN_STATUS_OK )
-        printf("Finding depth node\n");
-    xn::DepthMetaData depthMD;
-    g_depthGenerator.GetMetaData(depthMD);
-    const XnDepthPixel*  pDepth = depthMD.Data();
-    IplImage *depthMap = cvCreateImage( cvSize(depthMD.XRes(), depthMD.YRes()), IPL_DEPTH_16U, 1 );
-    uint16_t maxDepth = depthMD.ZRes();
 
     // Initialization done. Start generating
     context.StartGeneratingAll();
@@ -142,48 +99,17 @@ int main(int argc, char** argv)
     wc.RegisterPointUpdate(NULL, OnPointUpdate);
     pSessionGenerator->AddListener(&wc);
 
-    // register push control
-    XnVPushDetector pushDetector;
-    pushDetector.RegisterPush(NULL, &Push_Pushed);
-    pSessionGenerator->AddListener(&pushDetector);
-
 	printf("Please perform focus gesture to start session\n");
 	printf("Hit any key to exit\n");
 
 	// Main loop
-    XEventsEmulation interface;
-    int smooth_x, smooth_y;
 	while (!xnOSWasKeyboardHit())
 	{
         context.WaitAnyUpdateAll();     // OPenNI - any wait function
         ((XnVSessionManager*)pSessionGenerator)->Update(&context);
-
-        // Draw depth window
-        memcpy(depthMap->imageData, g_depthGenerator.GetDepthMap(), depthMap->imageSize); // Would work with just the pointer
-        //displayDepthImage(DEPTH_WINDOW, depthMap, maxDepth);
-        displayDepthPlan(DEPTH_WINDOW, depthMap, maxDepth,255*hand.z/maxDepth, (385 - hand.y));
-        int c = cvWaitKey(10);
-
-        //smooth_x = interface.smoothingPoint(hand.x, 'x');
-        //smooth_y = interface.smoothingPoint((hand.y, 'y');
-        //interface.mouseMove(smooth_x, smooth_y);
-        //printf("Z: %f -> %d\t", hand.z, smooth_x);
-        printf("Y: %f -> %d\t", hand.y, smooth_y);
-        //printf("( %d - %f )\n", hand.time, hand.confidence);
-        //if ( hand.left_clicked ) {
-            //interface.mouseClick("2", "click");
-            //hand.left_clicked = 0;
-        //}
-        if ( hand.right_clicked ) {
-            interface.keyHit("Home", "");
-            hand.right_clicked = 0;
-        }
 	}
 
 	delete pSessionGenerator;
-
-    cvReleaseImage(&depthMap);
-    cvDestroyAllWindows();
 
 	return 0;
 }
