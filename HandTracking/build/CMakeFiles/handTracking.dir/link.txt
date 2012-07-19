@@ -1,1 +1,0 @@
-/usr/bin/c++       CMakeFiles/handTracking.dir/main.cpp.o  -o handTracking -rdynamic -lXnVNite_1_5_2 -lOpenNI 
