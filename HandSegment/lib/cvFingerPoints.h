@@ -18,11 +18,6 @@ using namespace cv;
 using namespace xn;
 
 /*//////////////////////////////////////////////////////////////////////
-// types
-//////////////////////////////////////////////////////////////////////*/
-
-
-/*//////////////////////////////////////////////////////////////////////
 // constants
 //////////////////////////////////////////////////////////////////////*/
 
@@ -46,22 +41,6 @@ Mat bgrMat(frameSize, CV_8UC3);
 Mat depthMat(frameSize, CV_16UC1);
 Mat depthMat8(frameSize, CV_8UC1);
 Mat depthMatBgr(frameSize, CV_8UC3);
-
-/*//////////////////////////////////////////////////////////////////////
-// callbacks
-//////////////////////////////////////////////////////////////////////*/
-
-void XN_CALLBACK_TYPE onNewUser(xn::UserGenerator& generator, XnUserID nId, void* pCookie)
-{
-	cout << "onNewUser(" << nId << ")" << endl;
-	SkeletonCapability skelCap = userGen.GetSkeletonCap();
-
-	// load default calibration data
-	skelCap.LoadCalibrationDataFromFile(nId, "UserCalibration.bin");
-
-	// instantly track skeleton
-	skelCap.StartTracking(nId);
-}
 
 /*//////////////////////////////////////////////////////////////////////
 // functions
@@ -261,7 +240,7 @@ void drawContour(Mat &img, const vector<Point> &contour, const Scalar &color) {
 }
 
 double convexity(const vector<Point> &contour) {
-	Mat contourMat(contour);
+	Mat contourMat = Mat(contour);
 
 	vector<int> hull;
 	convexHull(contourMat, hull);
@@ -277,103 +256,3 @@ double convexity(const vector<Point> &contour) {
 
 	return (contourArea(contourMat) / contourArea(hullContourMat));
 }
-/*
-int test() {
-	const float minHandExtension = 0.2f; // in meters
-	const double grabConvexity = 0.8;
-
-	XnUserID userIds[maxUsers] = {0};
-	XnUInt16 nUsers = maxUsers;
-	char key = 0;
-
-	// init context and generators, (Image, Depth, IR, User)
-	initKinect(true, true, false, true);
-
-	// register some handy callbacks
-
-
-	SkeletonCapability skelCap = userGen.GetSkeletonCap();
-
-	Mat mask(frameSize, CV_8UC1);
-
-	while ( (key = (char) waitKey(1)) != 27 ) {
-		context.WaitAndUpdateAll();
-
-		// acquire bgr image
-		{
-			Mat mat(frameSize, CV_8UC3, (unsigned char*) imageGen.GetImageMap());
-			cvtColor(mat, bgrMat, CV_RGB2BGR);
-		}
-
-		// acquire depth image
-		{
-			Mat mat(frameSize, CV_16UC1, (unsigned char*) depthGen.GetDepthMap());
-			mat.copyTo(depthMat);
-			depthMat.convertTo(depthMat8, CV_8UC1, 255.0f / 3000.0f);
-			cvtColor(depthMat8, depthMatBgr, CV_GRAY2BGR);
-		}
-
-		// iterate over all user
-		nUsers = userGen.GetNumberOfUsers();
-		userGen.GetUsers(userIds, nUsers);
-		float conf; // joint confidence
-		float rh[3]; // right hand coordinates (x[px], y[px], z[meters])
-		float lh[3]; // left hand coordinates
-		float t[3]; // torso coordinates
- 
-		for (int i=0; i<nUsers; i++) {
-			int id = userIds[i];
-
-			// torso
-			if ( getJointImgCoordinates(skelCap, id, XN_SKEL_TORSO, t) == 1 ) {
-				unsigned char shade = 255 - (unsigned char)(t[2] *  128.0f);
-				circle(depthMatBgr, Point(t[0], t[1]), 10, Scalar(shade, 0, 0), -1);
-
-				// right hand
-				if ( 
-					(getJointImgCoordinates(skelCap, id, XN_SKEL_RIGHT_HAND, rh) == 1) // confident detection  && */
-					//(rh[2] < t[2] - minHandExtension) /* user extends hand towards screen/*  &&
-					//(rh[1] < t[1]) /* user raises his hand */
-				/*) {
-					unsigned char shade = 255 - (unsigned char)(rh[2] *  128.0f);
-					Scalar color(0, 0, shade);
-
-					vector<Point> handContour;
-					getHandContour(depthMat, rh, handContour);
-					bool grasp = convexity(handContour) > grabConvexity;
-					int thickness = grasp ? CV_FILLED : 3;
-					circle(depthMatBgr, Point(rh[0], rh[1]), 10, color, thickness);
-
-					vector<Point> fingerTips;
-					detectFingerTips(handContour, fingerTips, &depthMatBgr);
-				}
-
-				// left hand
-				if ( 
-					(getJointImgCoordinates(skelCap, id, XN_SKEL_LEFT_HAND, lh) == 1) &&
-					(lh[2] < t[2] - minHandExtension) &&
-			    	(lh[1] < t[1]) // user raises his hand */
-				/*) {
-					unsigned char shade = 255 - (unsigned char)(lh[2] *  128.0f);
-					Scalar color(0, shade, 0);
-
-					vector<Point> handContour;
-					getHandContour(depthMat, lh, handContour);
-					bool grasp = convexity(handContour) > grabConvexity;
-					int thickness = grasp ? CV_FILLED : 3;
-					circle(depthMatBgr, Point(lh[0], lh[1]), 10, color, thickness);
-
-					vector<Point> fingerTips;
-					detectFingerTips(handContour, fingerTips, &depthMatBgr);
-				}
-
-			}
-		}
-		
-		imshow("depthMatBgr", depthMatBgr);
-		//imshow("bgrMat", bgrMat);
-	}
-
-	return 0;
-}
-*/

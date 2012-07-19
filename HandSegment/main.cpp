@@ -2,25 +2,29 @@
 //-----------------------------------------------------------------------------
 // General headers
 #include <stdio.h>
+using namespace std;
 // External headers
 #include "lib/XEventsEmulation.cpp"
 #include "lib/cvCompute.h"
+#include "lib/cvFingerPoints.h"
 // OpenNI headers
 #include <XnOpenNI.h>
+#include <XnCppWrapper.h>
 // NITE headers
 #include <XnVSessionManager.h>
 #include <XnVWaveDetector.h>
 #include <XnVPushDetector.h>
+using namespace xn;
 // OpenCV
-//#include <highgui.h>
-//#include <cv.h>
+#include <cv.h>
+#include <highgui.h>
+using namespace cv;
 
 // xml to initialize OpenNI
 #define SAMPLE_XML_FILE "./data/Sample-Tracking.xml"
 #define SAMPLE_XML_FILE_LOCAL "Sample-Tracking.xml"
 #define DEPTH_WINDOW "Depth"
 
-// Global
 //typedef struct output output;
 struct position {
     float x;
@@ -32,7 +36,15 @@ struct position {
     int right_clicked;
 } hand;
 
-xn::DepthGenerator g_depthGenerator;
+// Global
+//const Size frameSize(640, 480);
+//const Mat emptyMat();
+//Mat bgrMat(frameSize, CV_8UC3);
+//Mat depthMap(frameSize, CV_16UC1);
+//Mat depthMat8(frameSize, CV_8UC1);
+//Mat depthMatBgr(frameSize, CV_8UC3);
+XnVector3D projectiveHandPosition;
+DepthGenerator g_depthGenerator;
 
 //-----------------------------------------------------------------------------
 // Callbacks/
@@ -69,11 +81,16 @@ void XN_CALLBACK_TYPE OnPointUpdate(const XnVHandPointContext* pContext, void* c
 {
 	//printf("%d: (%f,%f,%f) [%f]\n", pContext->nID, pContext->ptPosition.X, pContext->ptPosition.Y, pContext->ptPosition.Z, pContext->fTime);
     //printf("%d: ", pContext->nID);
-    hand.x = pContext->ptPosition.X;
-    hand.y = pContext->ptPosition.Y;
-    hand.z = pContext->ptPosition.Z;
-    hand.time = pContext->fTime;
-    hand.confidence = pContext->fConfidence;
+    //hand.x = pContext->ptPosition.X;
+    //hand.y = pContext->ptPosition.Y;
+    //hand.z = pContext->ptPosition.Z;
+    //hand.time = pContext->fTime;
+    //hand.confidence = pContext->fConfidence;
+    XnVector3D handPosition;
+    handPosition.X = pContext->ptPosition.X;
+    handPosition.Y = pContext->ptPosition.Y;
+    handPosition.Z = pContext->ptPosition.Z;
+    g_depthGenerator.ConvertRealWorldToProjective(1, &handPosition, &projectiveHandPosition);
 }
 
 //-----------------------------------------------------------------------------
@@ -91,9 +108,11 @@ XnBool fileExists(const char *fn)
 // this sample can run as a regular sample
 int main(int argc, char** argv)
 {
-	xn::Context context;
-	xn::ScriptNode scriptNode;
+	Context context;
+	ScriptNode scriptNode;
 	XnVSessionGenerator* pSessionGenerator;
+    const float grabConvexity = 0.8;
+    Mat mask(frameSize, CV_8UC1);
 
     // Create context
     const char *fn = NULL;
@@ -109,6 +128,7 @@ int main(int argc, char** argv)
         printf("Couldn't initialize: %s\n", xnGetStatusString(rc));
         return 1;
     }
+    //XnStatus rc = context.Init();
 
     // Create the Session Manager
     pSessionGenerator = new XnVSessionManager();
@@ -120,14 +140,20 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    // default output mode
+    XnMapOutputMode outputMode;
+    outputMode.nXRes = 640;
+    outputMode.nYRes = 480;
+    outputMode.nFPS = 30;
     // Depth drawing
     rc = context.FindExistingNode(XN_NODE_TYPE_DEPTH, g_depthGenerator);
     if ( rc != XN_STATUS_OK )
         printf("Finding depth node\n");
-    xn::DepthMetaData depthMD;
+    DepthMetaData depthMD;
     g_depthGenerator.GetMetaData(depthMD);
+    rc = g_depthGenerator.SetMapOutputMode(outputMode);
+    //rc = g_depthGenerator.GetMirrorCap().SetMirror(true);
     const XnDepthPixel*  pDepth = depthMD.Data();
-    IplImage *depthMap = cvCreateImage( cvSize(depthMD.XRes(), depthMD.YRes()), IPL_DEPTH_16U, 1 );
     uint16_t maxDepth = depthMD.ZRes();
 
     // Initialization done. Start generating
@@ -151,38 +177,37 @@ int main(int argc, char** argv)
 	printf("Hit any key to exit\n");
 
 	// Main loop
-    XEventsEmulation interface;
-    int smooth_x, smooth_y;
 	while (!xnOSWasKeyboardHit())
 	{
         context.WaitAnyUpdateAll();     // OPenNI - any wait function
         ((XnVSessionManager*)pSessionGenerator)->Update(&context);
-
         // Draw depth window
-        memcpy(depthMap->imageData, g_depthGenerator.GetDepthMap(), depthMap->imageSize); // Would work with just the pointer
-        //displayDepthImage(DEPTH_WINDOW, depthMap, maxDepth);
-        displayDepthPlan(DEPTH_WINDOW, depthMap, maxDepth,255*hand.z/maxDepth, (385 - hand.y));
-        int c = cvWaitKey(10);
-
-        //smooth_x = interface.smoothingPoint(hand.x, 'x');
-        //smooth_y = interface.smoothingPoint((hand.y, 'y');
-        //interface.mouseMove(smooth_x, smooth_y);
-        //printf("Z: %f -> %d\t", hand.z, smooth_x);
-        printf("Y: %f -> %d\t", hand.y, smooth_y);
-        //printf("( %d - %f )\n", hand.time, hand.confidence);
-        //if ( hand.left_clicked ) {
-            //interface.mouseClick("2", "click");
-            //hand.left_clicked = 0;
-        //}
-        if ( hand.right_clicked ) {
-            interface.keyHit("Home", "");
-            hand.right_clicked = 0;
+        Mat mat(frameSize, CV_16UC1, (unsigned char*)g_depthGenerator.GetDepthMap());
+        mat.copyTo(depthMat);
+        depthMat.convertTo(depthMat8, CV_8UC1, 255.0f / 3000.0f);
+        cvtColor(depthMat8, depthMatBgr, CV_GRAY2BGR);
+        // Segment !
+        float rh[3];
+        vector<Point> handContour;
+        rh[0] = projectiveHandPosition.X; rh[1] = projectiveHandPosition.Y; rh[2] = projectiveHandPosition.Z / 1000.0f;
+        unsigned char shade = 255 - (unsigned char)(hand.z * 128.0f);
+        Scalar color(0, 0, shade);
+        getHandContour(depthMat, rh, handContour);
+        if (handContour.size() != 0 ) {
+            bool grasp = convexity(handContour) > grabConvexity;
+            int thickness = grasp ? CV_FILLED : 3;
+            circle(depthMatBgr, Point(rh[0], rh[1]), 10, color, thickness);
+            // Detection
+            vector<Point> fingerTips;
+            detectFingerTips(handContour, fingerTips, &depthMatBgr);
         }
+        imshow("depthMatBgr", depthMatBgr);
+        int k = cvWaitKey(10);
 	}
 
 	delete pSessionGenerator;
 
-    cvReleaseImage(&depthMap);
+    //cvReleaseImage(&depthMap);
     cvDestroyAllWindows();
 
 	return 0;
