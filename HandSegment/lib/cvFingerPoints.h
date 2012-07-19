@@ -130,7 +130,7 @@ bool getHandContour(const Mat &depthMat, const float *v, vector<Point> &handCont
 	mask = mask & depthMat > near & depthMat < far;
 
 	// DEBUG(show mask)
-	imshow("mask1", mask);
+	//imshow("mask1", mask);
 
 	// assume largest contour in hand region to be the hand contour
 	vector<vector<Point> > contours;
@@ -154,13 +154,13 @@ bool getHandContour(const Mat &depthMat, const float *v, vector<Point> &handCont
 	}
 
 //	// DEBUG(draw hand contour
-    mask.setTo(0);	
-    if (maxI >= 0) {
-        vector<vector<Point> > contours2;
-        contours2.push_back(contours[maxI]);
-        drawContours(mask, contours2, -1, 255);
-        imshow("mask2", mask);
-    }
+    //mask.setTo(0);	
+    //if (maxI >= 0) {
+        //vector<vector<Point> > contours2;
+        //contours2.push_back(contours[maxI]);
+        //drawContours(mask, contours2, -1, 255);
+        //imshow("mask2", mask);
+    //}
 
 	return maxI >= 0;
 }

@@ -2,10 +2,10 @@
 .SUFFIXES:
 
 CC = g++
-EXEC = oneshot
+EXEC = handTracking
 DEBUG = no
-FLAGS = -c -msse3 -O2 -DNDEBUG  `pkg-config --cflags --libs opencv`
-INCLUDES = -I./lib -I/usr/include/ni -I/usr/include/nite
+FLAGS = -c -msse3 -O2 -DNDEBUG     # Not neccesary
+INCLUDES = -I/usr/include/ni -I/usr/include/nite
 LINKS = -lOpenNI -lXnVNite_1_5_2
 
 
@@ -37,4 +37,4 @@ clean:
 	rm -rf *.o
 
 mrproper: clean
-	rm -rf oneshot
+	rm -rf handTracking

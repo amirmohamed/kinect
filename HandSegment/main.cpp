@@ -5,7 +5,7 @@
 using namespace std;
 // External headers
 #include "lib/XEventsEmulation.cpp"
-#include "lib/cvCompute.h"
+//#include "lib/cvCompute.h"
 #include "lib/cvFingerPoints.h"
 // OpenNI headers
 #include <XnOpenNI.h>
@@ -25,25 +25,17 @@ using namespace cv;
 #define SAMPLE_XML_FILE_LOCAL "Sample-Tracking.xml"
 #define DEPTH_WINDOW "Depth"
 
-//typedef struct output output;
-struct position {
-    float x;
-    float y;
-    float z;
+typedef struct handTracked handTracked;
+struct handTracked {
+    XnVector3D position;
     int time;
     float confidence;
     int left_clicked;
     int right_clicked;
-} hand;
+} g_handR;
+handTracked g_handL;
 
 // Global
-//const Size frameSize(640, 480);
-//const Mat emptyMat();
-//Mat bgrMat(frameSize, CV_8UC3);
-//Mat depthMap(frameSize, CV_16UC1);
-//Mat depthMat8(frameSize, CV_8UC1);
-//Mat depthMatBgr(frameSize, CV_8UC3);
-XnVector3D projectiveHandPosition;
 DepthGenerator g_depthGenerator;
 
 //-----------------------------------------------------------------------------
@@ -69,28 +61,29 @@ void XN_CALLBACK_TYPE SessionEnd(void* UserCxt)
 void XN_CALLBACK_TYPE OnWaveCB(void* cxt)
 {
 	printf("Wave!\n");
-    hand.right_clicked = 1;
+    g_handR.right_clicked = 1;
 }
 // Callback for Push detection
 void XN_CALLBACK_TYPE Push_Pushed(XnFloat fVelocity, XnFloat fAngle, void* cxt) {
     printf("Push!\n");
-    hand.left_clicked = 1;
+    g_handR.left_clicked = 1;
 }
 // callback for a new position of any hand
 void XN_CALLBACK_TYPE OnPointUpdate(const XnVHandPointContext* pContext, void* cxt)
 {
 	//printf("%d: (%f,%f,%f) [%f]\n", pContext->nID, pContext->ptPosition.X, pContext->ptPosition.Y, pContext->ptPosition.Z, pContext->fTime);
-    //printf("%d: ", pContext->nID);
-    //hand.x = pContext->ptPosition.X;
-    //hand.y = pContext->ptPosition.Y;
-    //hand.z = pContext->ptPosition.Z;
-    //hand.time = pContext->fTime;
-    //hand.confidence = pContext->fConfidence;
-    XnVector3D handPosition;
-    handPosition.X = pContext->ptPosition.X;
-    handPosition.Y = pContext->ptPosition.Y;
-    handPosition.Z = pContext->ptPosition.Z;
-    g_depthGenerator.ConvertRealWorldToProjective(1, &handPosition, &projectiveHandPosition);
+    if ( pContext->nID == 1 ) {
+        //g_handR.time = pContext->fTime;
+        //g_handR.confidence = pContext->fConfidence;
+        g_handR.position.X = pContext->ptPosition.X;
+        g_handR.position.Y = pContext->ptPosition.Y;
+        g_handR.position.Z = pContext->ptPosition.Z;
+    }
+    else {
+        g_handL.position.X = pContext->ptPosition.X;
+        g_handL.position.Y = pContext->ptPosition.Y;
+        g_handL.position.Z = pContext->ptPosition.Z;
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -177,6 +170,15 @@ int main(int argc, char** argv)
 	printf("Hit any key to exit\n");
 
 	// Main loop
+    XnVector3D projectiveHandPosition;
+    float rh[3];
+    vector<Point> handContour;   
+    unsigned char shade;
+    Scalar color;
+    vector<Point> fingerTips;
+    XEventsEmulation interface;
+    int smooth_x, smooth_y;
+    int cpt(0);
 	while (!xnOSWasKeyboardHit())
 	{
         context.WaitAnyUpdateAll();     // OPenNI - any wait function
@@ -186,21 +188,48 @@ int main(int argc, char** argv)
         mat.copyTo(depthMat);
         depthMat.convertTo(depthMat8, CV_8UC1, 255.0f / 3000.0f);
         cvtColor(depthMat8, depthMatBgr, CV_GRAY2BGR);
-        // Segment !
-        float rh[3];
-        vector<Point> handContour;
+        // Segment Right hand
+        handContour.clear();
+        g_depthGenerator.ConvertRealWorldToProjective(1, &g_handR.position, &projectiveHandPosition);
         rh[0] = projectiveHandPosition.X; rh[1] = projectiveHandPosition.Y; rh[2] = projectiveHandPosition.Z / 1000.0f;
-        unsigned char shade = 255 - (unsigned char)(hand.z * 128.0f);
-        Scalar color(0, 0, shade);
+        char shade = 255 - (unsigned char)(g_handR.position.Z * 128.0f);
+        color = Scalar(0, 0, shade);
+             */
         getHandContour(depthMat, rh, handContour);
-        if (handContour.size() != 0 ) {
+        if ( !handContour.empty() ) {     // At least one hand is tracked
             bool grasp = convexity(handContour) > grabConvexity;
             int thickness = grasp ? CV_FILLED : 3;
             circle(depthMatBgr, Point(rh[0], rh[1]), 10, color, thickness);
             // Detection
-            vector<Point> fingerTips;
+            fingerTips.clear();
+            detectFingerTips(handContour, fingerTips, &depthMatBgr);
+            // Computer control 
+            if ( (fingerTips.empty() ) && (cpt==0) ) {
+                interface.mouseClick("2", "click");
+                cpt = 60;
+            }
+            else {
+                smooth_x = interface.smoothingPoint(g_handR.position.X, 'x');
+                smooth_y = interface.smoothingPoint(g_handR.position.Y, 'y');
+                interface.mouseMove(smooth_x, smooth_y);
+            }
+        }
+        // Segment Right hand
+        handContour.clear();
+        g_depthGenerator.ConvertRealWorldToProjective(1, &g_handL.position, &projectiveHandPosition);
+        rh[0] = projectiveHandPosition.X; rh[1] = projectiveHandPosition.Y; rh[2] = projectiveHandPosition.Z / 1000.0f;
+        shade = 255 - (unsigned char)(g_handL.position.Z * 128.0f);
+        color = Scalar(0, 0, shade);
+        getHandContour(depthMat, rh, handContour);
+        if ( !handContour.empty() ) {     // At least one hand is tracked
+            bool grasp = convexity(handContour) > grabConvexity;
+            int thickness = grasp ? CV_FILLED : 3;
+            circle(depthMatBgr, Point(rh[0], rh[1]), 10, color, thickness);
+            // Detection
+            fingerTips.clear();
             detectFingerTips(handContour, fingerTips, &depthMatBgr);
         }
+        if ( cpt != 0 ) cpt--;
         imshow("depthMatBgr", depthMatBgr);
         int k = cvWaitKey(10);
 	}
