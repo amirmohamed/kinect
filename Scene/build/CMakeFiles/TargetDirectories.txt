@@ -1,1 +1,0 @@
-/home/xavier/dev/projects/Kinect/Scene/build/CMakeFiles/template.dir

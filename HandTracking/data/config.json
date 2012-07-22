@@ -1,0 +1,19 @@
+{
+    "commande": "unuse",
+    "global":
+    {
+        "debug": true,
+        "graphic": true
+    },
+    "detect":
+    {
+        "handToTrack": -1,
+        "grabConvexity": 0.8,
+        "epsilon": 17.5,
+        "MaxHandRadius": 128,
+        "tolerance": 100,
+        "angleMax": 2,
+        "cutoffCoeff": 0.1,
+        "cycle": 10
+    }
+}

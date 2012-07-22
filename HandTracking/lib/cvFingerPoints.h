@@ -23,21 +23,13 @@ using namespace xn;
 
 const Size frameSize(640, 480);
 const unsigned int maxUsers = 20;
-const Mat emptyMat();
+//const Mat emptyMat();
 
 /*//////////////////////////////////////////////////////////////////////
 // globals
 //////////////////////////////////////////////////////////////////////*/
 
-// openNI context and generator nodes
-Context context;
-ImageGenerator imageGen;
-DepthGenerator depthGen;
-IRGenerator irGen;
-UserGenerator userGen;
-
 // frame buffers
-Mat bgrMat(frameSize, CV_8UC3);
 Mat depthMat(frameSize, CV_16UC1);
 Mat depthMat8(frameSize, CV_8UC1);
 Mat depthMatBgr(frameSize, CV_8UC3);
@@ -46,81 +38,14 @@ Mat depthMatBgr(frameSize, CV_8UC3);
 // functions
 //////////////////////////////////////////////////////////////////////*/
 
-void initKinect(bool initImage, bool initDepth, bool initIR, bool initUser) {
-	XnStatus nRetVal = XN_STATUS_OK;
-
-	// Initialize context object
-	nRetVal = context.Init();
-	cout << "init : " << xnGetStatusString(nRetVal) << endl;
-
-	// default output mode
-	XnMapOutputMode outputMode;
-	outputMode.nXRes = 640;
-	outputMode.nYRes = 480;
-	outputMode.nFPS = 30;
-
-	// Create an ImageGenerator node
-	if (initImage) {	
-		nRetVal = imageGen.Create(context);
-		cout << "imageGen.Create : " << xnGetStatusString(nRetVal) << endl;
-		nRetVal = imageGen.SetMapOutputMode(outputMode);
-		cout << "imageGen.SetMapOutputMode : " << xnGetStatusString(nRetVal) << endl;
-		nRetVal = imageGen.GetMirrorCap().SetMirror(true);
-		cout << "imageGen.GetMirrorCap().SetMirror : " << xnGetStatusString(nRetVal) << endl;
-	}
-
-	// Create a DepthGenerator node	
-	if (initDepth) {
-		nRetVal = depthGen.Create(context);
-		cout << "depthGen.Create : " << xnGetStatusString(nRetVal) << endl;
-		nRetVal = depthGen.SetMapOutputMode(outputMode);
-		cout << "depthGen.SetMapOutputMode : " << xnGetStatusString(nRetVal) << endl;
-		nRetVal = depthGen.GetMirrorCap().SetMirror(true);
-		cout << "depthGen.GetMirrorCap().SetMirror : " << xnGetStatusString(nRetVal) << endl;
-	}
-
-	// Create an IRGenerator node
-	if (initIR) {
-		nRetVal = irGen.Create(context);
-		cout << "irGen.Create : " << xnGetStatusString(nRetVal) << endl;
-		nRetVal = irGen.SetMapOutputMode(outputMode);
-		cout << "irGen.SetMapOutputMode : " << xnGetStatusString(nRetVal) << endl;
-	}
-
-	// create user generator
-	if (initUser) {
-		nRetVal = userGen.Create(context);
-		cout << "userGen.Create : " << xnGetStatusString(nRetVal) << endl;
-		userGen.GetSkeletonCap().SetSkeletonProfile(XN_SKEL_PROFILE_ALL);
-	}
-
-	// Make it start generating data
-	nRetVal = context.StartGeneratingAll();
-	cout << "context.StartGeneratingAll : " << xnGetStatusString(nRetVal) << endl;
-}
-
-float getJointImgCoordinates(const SkeletonCapability &skeletonCapability, const XnUserID userId, const XnSkeletonJoint skeletonJoint, float *v) {
-	XnVector3D projective;
-	XnSkeletonJointPosition skeletonJointPosition;
-	skeletonCapability.GetSkeletonJointPosition(userId, skeletonJoint, skeletonJointPosition);
-	
-	depthGen.ConvertRealWorldToProjective(1, &skeletonJointPosition.position, &projective);
-
-	v[0] = projective.X;
-	v[1] = projective.Y;
-	v[2] = projective.Z / 1000.0f;
-
-	return skeletonJointPosition.fConfidence;
-}
-
-bool getHandContour(const Mat &depthMat, const float *v, vector<Point> &handContour) {
-	const int maxHandRadius = 128; // in px
-	const short handDepthRange = 200; // in mm
-	const double epsilon = 17.5; // approximation accuracy (maximum distance between the original hand contour and its approximation)
+bool getHandContour(const Mat &depthMat, const float *v, vector<Point> &handContour, bool debug = false, const double epsilon = 17.5, const int maxHandRadius = 128, int distance = 100) {
+	//const int maxHandRadius = 128; // in px
+	//const short handDepthRange = 200; // in mm
+	//const double epsilon = 17.5; // approximation accuracy (maximum distance between the original hand contour and its approximation)
 
 	unsigned short depth = (unsigned short) (v[2] * 1000.0f); // hand depth
-	unsigned short near = depth - 100; // near clipping plane
-	unsigned short far = depth + 100; // far clipping plane
+	unsigned short near = depth - distance; // near clipping plane
+	unsigned short far = depth + distance; // far clipping plane
 
 	static Mat mask(frameSize, CV_8UC1);
 	mask.setTo(0);
@@ -130,7 +55,8 @@ bool getHandContour(const Mat &depthMat, const float *v, vector<Point> &handCont
 	mask = mask & depthMat > near & depthMat < far;
 
 	// DEBUG(show mask)
-	//imshow("mask1", mask);
+    if ( debug )
+	    imshow("mask1", mask);
 
 	// assume largest contour in hand region to be the hand contour
 	vector<vector<Point> > contours;
@@ -153,19 +79,21 @@ bool getHandContour(const Mat &depthMat, const float *v, vector<Point> &handCont
 		//handContour = contours[maxI];
 	}
 
-//	// DEBUG(draw hand contour
-    //mask.setTo(0);	
-    //if (maxI >= 0) {
-        //vector<vector<Point> > contours2;
-        //contours2.push_back(contours[maxI]);
-        //drawContours(mask, contours2, -1, 255);
-        //imshow("mask2", mask);
-    //}
+	// DEBUG(draw hand contour)
+    if ( debug ) {
+        mask.setTo(0);	
+        if (maxI >= 0) {
+            vector<vector<Point> > contours2;
+            contours2.push_back(contours[maxI]);
+            drawContours(mask, contours2, -1, 255);
+            imshow("mask2", mask);
+        }
+    }
 
 	return maxI >= 0;
 }
 
-void detectFingerTips(const vector<Point> &handContour, vector<Point> &fingerTips, Mat *debugFrame = NULL) {
+void detectFingerTips(const vector<Point> &handContour, vector<Point> &fingerTips, Mat *debugFrame = NULL, float angleMax = 1, float cutoffCoeff = 0.1f) {
 	Mat handContourMat(handContour);
 	double area = cv::contourArea(handContourMat);
 
@@ -181,7 +109,7 @@ void detectFingerTips(const vector<Point> &handContour, vector<Point> &fingerTip
 		if (handContour[idx].y < upper) upper = handContour[idx].y;
 		if (handContour[idx].y > lower) lower = handContour[idx].y;
 	}
-	float cutoff = lower - (lower - upper) * 0.1f;
+	float cutoff = lower - (lower - upper) * cutoffCoeff;
 
 	// find interior angles of hull corners
 	for (int j=0; j<hull.size(); j++) {
@@ -194,8 +122,8 @@ void detectFingerTips(const vector<Point> &handContour, vector<Point> &fingerTip
 
 		float angle = acos( (v1.x*v2.x + v1.y*v2.y) / (norm(v1) * norm(v2)) );
 
-		// low interior angle + within upper 90% of region -> we got a finger
-		if (angle < 1 && handContour[idx].y < cutoff) {
+		// low interior angle +angle within upper 90% of region -> we got a finger
+		if (angle < angleMax && handContour[idx].y < cutoff) {
 			int u = handContour[idx].x;
 			int v = handContour[idx].y;
 
@@ -233,11 +161,11 @@ void detectFingerTips(const vector<Point> &handContour, vector<Point> &fingerTip
 	}
 }
 
-void drawContour(Mat &img, const vector<Point> &contour, const Scalar &color) {
-	vector<vector<Point> > contours;
-	contours.push_back(contour);
-	drawContours(img, contours, -1, color);
-}
+//void drawContour(Mat &img, const vector<Point> &contour, const Scalar &color) {
+	//vector<vector<Point> > contours;
+	//contours.push_back(contour);
+	//drawContours(img, contours, -1, color);
+//}
 
 double convexity(const vector<Point> &contour) {
 	Mat contourMat = Mat(contour);
