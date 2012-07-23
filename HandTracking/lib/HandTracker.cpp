@@ -117,45 +117,59 @@ void XnVHandTracker::Update(XnVMessage* pMessage)
         //if (Id == GetPrimaryID())
             //printf("Primary Point is: %d\n", Id);
         if (IsTouching(Id)) 
-            printf("Touched !\n");
+            printf("Touched ! (%d)\n", Id);
     }
 	m_TouchingFOVEdge.clear();
 }
 
 void XnVHandTracker::getPosition(float *v, XnUInt32 Id) {
-    if ( Id == -1 )
-        Id = GetPrimaryID();
     std::map<XnUInt32, XnPoint3D>::const_iterator PointIterator;
-    // Handle each hand
-    for ( PointIterator = m_handsPosition.begin();
-       PointIterator != m_handsPosition.end();
-      ++PointIterator ) {
-        XnUInt32 handId = PointIterator->first;
-        if ( Id == handId ) {
-            v[0] = PointIterator->second.X;
-            v[1] = PointIterator->second.Y;
-            v[2] = PointIterator->second.Z / 1000.0f;
+    if ( Id == -1 ) {   // Second Hand
+        // Handle each hand
+        for ( PointIterator = m_handsPosition.begin();
+           PointIterator != m_handsPosition.end();
+          ++PointIterator ) {
+            XnUInt32 handId = PointIterator->first;
+            if ( handId != GetPrimaryID() ) {
+                v[0] = PointIterator->second.X;
+                v[1] = PointIterator->second.Y;
+                v[2] = PointIterator->second.Z / 1000.0f;
+            }
+        }
+    }
+    else {      
+        if ( Id == 0 )  // Primary hand
+            Id = GetPrimaryID();
+        for ( PointIterator = m_handsPosition.begin();
+           PointIterator != m_handsPosition.end();
+          ++PointIterator ) {
+            XnUInt32 handId = PointIterator->first;
+            if ( Id == handId ) {
+                v[0] = PointIterator->second.X;
+                v[1] = PointIterator->second.Y;
+                v[2] = PointIterator->second.Z / 1000.0f;
+            }
         }
     }
 }
 
-void PrintSessionState(SessionState eState)
+std::string PrintSessionState(SessionState eState)
 {
 	switch (eState)
 	{
 	case IN_SESSION:
-		printf("Tracking hands\n");
+		return "Tracking hands";
 	case NOT_IN_SESSION:
-		printf("Perform click or wave gestures to track hand\n");
+		return "Perform click or wave gestures to track hand";
 	case QUICK_REFOCUS:
-		printf("Raise your hand for it to be identified, or perform click or wave gestures");
+		return "Raise your hand for it to be identified, or perform click or wave gestures";
 	}
+    return "failed...";
 }
 
 
-bool XnVHandTracker::getContour(const Mat mat, const float *v, vector<Point> &handContour, float maxDepth = 3000.0f, bool debug = false, const double epsilon = 17.5, const int maxHandRadius = 128, int distance = 100) {
+bool XnVHandTracker::getContour(const Mat mat, const float *v, vector<Point> &handContour, bool debug = false, const double epsilon = 17.5, const int maxHandRadius = 128, int distance = 100, float maxDepth = 3000.0f) {
     mat.copyTo(depthMat);
-    //TODO 3000 = maxDepth retireve with GetDepthMetaData ?
     depthMat.convertTo(depthMat8, CV_8UC1, 255.0f / maxDepth);
     cvtColor(depthMat8, depthMatBgr, CV_GRAY2BGR);
     char shade = 255 - (unsigned char)(v[2] * 128.0f);
@@ -202,7 +216,7 @@ bool XnVHandTracker::getContour(const Mat mat, const float *v, vector<Point> &ha
 		//handContour = contours[maxI];
 	}
 
-	// DEBUG(draw hand contour
+    //DEBUG(draw hand contour
     if ( debug ) {
         mask.setTo(0);	
         if (maxI >= 0) {

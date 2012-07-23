@@ -50,11 +50,6 @@ XnVFlowRouter* g_pFlowRouter;
 // the drawer
 XnVHandTracker* g_pHand;
 
-// Draw the depth map?
-//XnBool g_bDrawDepthMap = true;
-//XnBool g_bPause = false;
-//XnBool g_bQuit = false;
-
 SessionState g_SessionState = NOT_IN_SESSION;
 
 void CleanupExit()
@@ -96,7 +91,7 @@ void XN_CALLBACK_TYPE NoHands(void* UserCxt)
 void XN_CALLBACK_TYPE TouchingCallback(xn::HandTouchingFOVEdgeCapability& generator, XnUserID id, const XnPoint3D* pPosition, XnFloat fTime, XnDirection eDir, void* pCookie)
 {
 	g_pHand->SetTouchingFOVEdge(id);
-    printf("[IN CALLBACK] Touching (%d)!\n", id);
+    //printf("[IN CALLBACK] Touching (%d)!\n", id);
 }
 
 void XN_CALLBACK_TYPE GestureIntermediateStageCompletedHandler(xn::GestureGenerator& generator, const XnChar* strGesture, const XnPoint3D* pPosition, void* pCookie)
@@ -164,6 +159,7 @@ int main(int argc, char ** argv)
     g_DepthGenerator.GetMetaData(depthMD);
     //const XnDepthPixel* pDepth = depthMD.Data();
     uint16_t maxDepth = depthMD.ZRes();
+    printf("[DEBUG] Max depth: %d\n", maxDepth);  // Doesn't work !
 
 	// Create NITE objects
 	g_pSessionManager = new XnVSessionManager;
@@ -188,12 +184,12 @@ int main(int argc, char ** argv)
     printf("[DEBUG] Process configuration (%s)\n", CONFIG_JSON_PATH);
     map<string, bool> globalConf;
     map<string, float> detectConf;
+    int handToTrack(-1);
     ptree pt;
     try {
         read_json(CONFIG_JSON_PATH, pt);
         globalConf["graphic"] = pt.get("global.graphic", true);
         globalConf["debug"] = pt.get("global.debug", false);
-        detectConf["handToTrack"] = pt.get("global.handToTrack", -1);
         detectConf["grabConvexity"] = pt.get("detect.grabConvexity", 0.8);
         detectConf["epsilon"] = pt.get("detect.epsilon", 17.5);
         detectConf["maxHandRadius"] = pt.get("detect.maxHandRadius", 128);
@@ -201,6 +197,7 @@ int main(int argc, char ** argv)
         detectConf["angleMax"] = pt.get("detect.angleMax", 1);
         detectConf["cutoffCoeff"] = pt.get("detect.cutoffCoeff", 0.1f);
         detectConf["cycle"] = pt.get("detect.cycle", 20);
+        handToTrack = pt.get("global.handToTrack", -1);
         printf("[DEBUG], Done.\n");
     }
     catch( exception &e ) {
@@ -208,35 +205,31 @@ int main(int argc, char ** argv)
         return 1;
     }
     //----------------------------------------------------------------------------------------
+    int cpt(0);
     float rh[3];
     vector<Point> handContour, fingerTips;
     unsigned char shade;
     Scalar color;
-    //int handToTrack(-1);
-    //bool debug = false;
-    //bool graphic = false;
-    //const float grabConvexity = 0.8; const double epsilon(17.5); const int maxHandRadius(128); int distance(100);
-    //float angleMax(1); float cutoffCoeff(0.1f);
-    //int cycle(10);
     //XEventsEmulation interface;
-    //string trackedInfos("Tracked hand [X: 532 Y:125]\nConfidence: 0.8\nTime: 5.6s");
+    string trackedInfos("Tracked hand [X: 532 Y:125]\nConfidence: 0.8\nTime: 5.6s");
 	// Mainloop
 	while ( !xnOSWasKeyboardHit() )
 	{
 		g_Context.WaitOneUpdateAll(g_DepthGenerator);
 		g_pSessionManager->Update(&g_Context);
-		//PrintSessionState(g_SessionState);
+		trackedInfos = PrintSessionState(g_SessionState);
         // Prepare data for opencv
-        g_pHand->getPosition(rh, globalConf["handToTrack"]);     // -1 for Primary point, 0 the other one ?
+        g_pHand->getPosition(rh, - (cpt % 2));     // -1 for Primary point, 0 the other one ?
         Mat mat(frameSize, CV_16UC1, (unsigned char *)g_DepthGenerator.GetDepthMap());
-        if ( g_pHand->getContour(mat, rh, handContour, maxDepth, globalConf["debug"], detectConf["epsilon"], detectConf["maxHandRadius"], detectConf["distance"]) ) {
+        if ( g_pHand->getContour(mat, rh, handContour, globalConf["debug"], detectConf["epsilon"], detectConf["maxHandRadius"], detectConf["tolerance"]) ) {
             bool grasp = g_pHand->computeConvex(handContour) > detectConf["grabConvexity"];
             int thickness = grasp ? CV_FILLED : 3;
             circle(depthMatBgr, Point(rh[0], rh[1]), 10, color, thickness);
             // Detection
             g_pHand->detectFingerTips(handContour, fingerTips, &depthMatBgr, detectConf["angleMax"], detectConf["cutoffCoeff"]);
+            cpt++;
         }
-        //putText(depthMatBgr, trackedInfos, Point(rh[0]-50,rh[1]-50), FONT_HERSHEY_PLAIN, 0.5, Scalar(0, 0, 0, 0), 2);
+        putText(depthMatBgr, trackedInfos, Point(rh[0]-50,rh[1]-50), FONT_HERSHEY_SCRIPT_SIMPLEX, 1, Scalar(0, 0, 0, 0), 2);
         if ( globalConf["graphic"] )
             imshow( "depthMatBgr", depthMatBgr );
         int k = cvWaitKey(detectConf["cycle"]);

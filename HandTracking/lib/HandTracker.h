@@ -25,7 +25,7 @@ typedef enum
 	QUICK_REFOCUS
 } SessionState;
 
-void PrintSessionState(SessionState eState);
+std::string PrintSessionState(SessionState eState);
 /**
  * This is a point control, which stores the history of every point
  * It can draw all the points as well as the depth map.
@@ -68,7 +68,7 @@ public:
     /*
      *Compute  a vector describing hand contour
      */
-    bool getContour(const Mat mat, const float *v, vector<Point> &handContour, float maxDepth, bool debug, const double epsilon, const int maxHandRadius, int distance);
+    bool getContour(const Mat mat, const float *v, vector<Point> &handContour, bool debug, const double epsilon, const int maxHandRadius, int distance, float maxDepth);
 
     /*
      *Process a convex algo to improve segmentation
