@@ -3,11 +3,11 @@
     "global":
     {
         "debug": false,
-        "graphic": false
+        "graphic": true
     },
     "detect":
     {
-        "handToTrack": -1,
+        "handToTrack": 0,
         "grabConvexity": 0.8,
         "epsilon": 17.5,
         "MaxHandRadius": 128,

@@ -197,8 +197,8 @@ int main(int argc, char ** argv)
         detectConf["angleMax"] = pt.get("detect.angleMax", 1);
         detectConf["cutoffCoeff"] = pt.get("detect.cutoffCoeff", 0.1f);
         detectConf["cycle"] = pt.get("detect.cycle", 20);
-        handToTrack = pt.get("global.handToTrack", -1);
-        printf("[DEBUG], Done.\n");
+        handToTrack = pt.get("detect.handToTrack", 0);
+        printf("[DEBUG] Done.\n");
     }
     catch( exception &e ) {
         cout << "[ERROR] " << e.what() << "\n";
@@ -210,7 +210,7 @@ int main(int argc, char ** argv)
     vector<Point> handContour, fingerTips;
     unsigned char shade;
     Scalar color;
-    //XEventsEmulation interface;
+    XEventsEmulation interface;
     string trackedInfos("Tracked hand [X: 532 Y:125]\nConfidence: 0.8\nTime: 5.6s");
 	// Mainloop
 	while ( !xnOSWasKeyboardHit() )
@@ -219,7 +219,8 @@ int main(int argc, char ** argv)
 		g_pSessionManager->Update(&g_Context);
 		trackedInfos = PrintSessionState(g_SessionState);
         // Prepare data for opencv
-        g_pHand->getPosition(rh, - (cpt % 2));     // -1 for Primary point, 0 the other one ?
+        //g_pHand->getPosition(rh, - (cpt % 2));     
+        g_pHand->getPosition(rh, handToTrack);
         Mat mat(frameSize, CV_16UC1, (unsigned char *)g_DepthGenerator.GetDepthMap());
         if ( g_pHand->getContour(mat, rh, handContour, globalConf["debug"], detectConf["epsilon"], detectConf["maxHandRadius"], detectConf["tolerance"]) ) {
             bool grasp = g_pHand->computeConvex(handContour) > detectConf["grabConvexity"];
@@ -227,9 +228,11 @@ int main(int argc, char ** argv)
             circle(depthMatBgr, Point(rh[0], rh[1]), 10, color, thickness);
             // Detection
             g_pHand->detectFingerTips(handContour, fingerTips, &depthMatBgr, detectConf["angleMax"], detectConf["cutoffCoeff"]);
-            cpt++;
+            if ( interface.processingUI(rh, fingerTips) != 0 )
+                printf("[ERROR] Processing\n");
+            //cpt++;
         }
-        putText(depthMatBgr, trackedInfos, Point(rh[0]-50,rh[1]-50), FONT_HERSHEY_SCRIPT_SIMPLEX, 1, Scalar(0, 0, 0, 0), 2);
+        putText(depthMatBgr, trackedInfos, Point(rh[0]-50,rh[1]-50), FONT_HERSHEY_TRIPLEX, 1, Scalar(0, 0, 0, 0), 2);
         if ( globalConf["graphic"] )
             imshow( "depthMatBgr", depthMatBgr );
         int k = cvWaitKey(detectConf["cycle"]);
@@ -239,7 +242,6 @@ int main(int argc, char ** argv)
     cvDestroyAllWindows();
 }
 
-//TODO Check documentation like for more callbacks and control
 //TODO Configuration file (global functions (like printing stuff), segment algo and control) + Compilation conditionnelle (DEBUG/REALEASE ?)
 //TODO Deportation de calcul (clustering et cartes graphiques à terme)
 //TODO Mark when an object is tracked -> two hands (activable ? utilité ?)
