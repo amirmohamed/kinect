@@ -19,6 +19,9 @@ using namespace boost::property_tree;
 #include <cv.h>
 #include <highgui.h>
 using namespace cv;
+// TUIO protocol
+#include <TuioServer.h>
+using namespace TUIO;
 
 #define CHECK_RC(rc, what)											\
 	if (rc != XN_STATUS_OK)											\
@@ -181,6 +184,15 @@ int main(int argc, char ** argv)
 	CHECK_RC(rc, "StartGenerating");
 
     // Environnement initialisation ----------------------------------------------------------
+    // **** TUIO Init
+    const bool localClientMode = true;
+    TuioServer* tuio;
+    if ( localClientMode )
+        tuio = new TuioServer();
+    else
+        tuio = new TuioServer("192.168.0.2",3333,false);
+    TuioTime time;
+
     printf("[DEBUG] Process configuration (%s)\n", CONFIG_JSON_PATH);
     map<string, bool> globalConf;
     map<string, float> detectConf;
@@ -205,7 +217,6 @@ int main(int argc, char ** argv)
         return 1;
     }
     //----------------------------------------------------------------------------------------
-    int cpt(0);
     float rh[3];
     vector<Point> handContour, fingerTips;
     unsigned char shade;
@@ -219,7 +230,6 @@ int main(int argc, char ** argv)
 		g_pSessionManager->Update(&g_Context);
 		trackedInfos = PrintSessionState(g_SessionState);
         // Prepare data for opencv
-        //g_pHand->getPosition(rh, - (cpt % 2));     
         g_pHand->getPosition(rh, handToTrack);
         Mat mat(frameSize, CV_16UC1, (unsigned char *)g_DepthGenerator.GetDepthMap());
         if ( g_pHand->getContour(mat, rh, handContour, globalConf["debug"], detectConf["epsilon"], detectConf["maxHandRadius"], detectConf["tolerance"]) ) {
@@ -228,9 +238,25 @@ int main(int argc, char ** argv)
             circle(depthMatBgr, Point(rh[0], rh[1]), 10, color, thickness);
             // Detection
             g_pHand->detectFingerTips(handContour, fingerTips, &depthMatBgr, detectConf["angleMax"], detectConf["cutoffCoeff"]);
-            if ( interface.processingUI(rh, fingerTips) != 0 )
-                printf("[ERROR] Processing\n");
-            //cpt++;
+            //if ( interface.processingUI(rh, fingerTips) != 0 )
+                //printf("[ERROR] Processing\n");
+
+            // ****TUIO cursors handling
+            time = TuioTime::getSessionTime();
+            tuio->initFrame(time);
+            for (unsigned int i = 0; i < fingerTips.size(); i++) {
+                // May be some transformations here
+                float cursorX = fingerTips[i].x;
+                float cursorY = fingerTips[i].y;
+                TuioCursor* cursor = tuio->getClosestTuioCursor(cursorX, cursorY);
+                if ( cursor == NULL || cursor->getTuioTime() == time )
+                    tuio->addTuioCursor(cursorX, cursorY);
+                else
+                    tuio->updateTuioCursor(cursor, cursorX, cursorY);
+            }
+            tuio->stopUntouchedMovingCursors();
+            tuio->removeUntouchedStoppedCursors();
+            tuio->commitFrame();
         }
         putText(depthMatBgr, trackedInfos, Point(rh[0]-50,rh[1]-50), FONT_HERSHEY_TRIPLEX, 1, Scalar(0, 0, 0, 0), 2);
         if ( globalConf["graphic"] )

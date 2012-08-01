@@ -6,8 +6,6 @@ find_library(OpenNI_LIBS OpenNI)
 find_path(OpenNI_INCLUDES XnOpenNI.h PATHS /usr/include/ni)
 find_library(XnVNite_LIBS XnVNite_1_5_2)
 find_path(XnVNite_INCLUDES XnVSessionManager.h PATHS /usr/include/nite)
-set(BOOST_INCLUDE_DIR /home/xavier/lib/boost_1_49_0)
-include_directories(${BOOST_INCLUDE_DIR})
 
 include(FindPkgConfig)
 pkg_check_modules(OpenCV REQUIRED opencv)
@@ -15,13 +13,14 @@ pkg_check_modules(OpenCV REQUIRED opencv)
 find_package(Boost REQUIRED system)
 find_package(Threads)
 
-include_directories(${OpenCV_INCLUDE_DIRS} ${XnVNite_INCLUDES} ${OpenNI_INCLUDES}) #/usr/include/ni(te)
+#include_directories(/home/xavier/dev/kinect/Experimental/test/TUIO)
+include_directories(${OpenCV_INCLUDE_DIRS} ${XnVNite_INCLUDES} ${OpenNI_INCLUDES} ${TUIO_INCLUDES} ${OSC_INCLUDES} ./TUIO ./oscpack) 
 
 set (CMAKE_C_FLAGS "-g -c -msse3 -O2 -DNDEBUG")
 
-add_executable (fingerSegment main.cpp)
-target_link_libraries(fingerSegment ${OpenCV_LIBRARIES} ${XnVNite_LIBS} ${OpenNI_LIBS} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+add_executable (KinectTuio main.cpp ./TUIO/TuioClient.cpp ./TUIO/TuioServer.cpp ./TUIO/TuioTime.cpp ./oscpack/osc/OscTypes.cpp ./oscpack/osc/OscOutboundPacketStream.cpp ./oscpack/osc/OscReceivedElements.cpp ./oscpack/osc/OscPrintReceivedElements.cpp ./oscpack/ip/posix/NetworkingUtils.cpp ./oscpack/ip/posix/UdpSocket.cpp)
+target_link_libraries(KinectTuio ${OpenCV_LIBRARIES} ${XnVNite_LIBS} ${OpenNI_LIBS} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
-ADD_CUSTOM_COMMAND(TARGET fingerSegment
+ADD_CUSTOM_COMMAND(TARGET KinectTuio
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy fingerSegment ../)
+    COMMAND ${CMAKE_COMMAND} -E copy KinectTuio ../)
