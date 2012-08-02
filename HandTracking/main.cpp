@@ -184,15 +184,6 @@ int main(int argc, char ** argv)
 	CHECK_RC(rc, "StartGenerating");
 
     // Environnement initialisation ----------------------------------------------------------
-    // **** TUIO Init
-    const bool localClientMode = true;
-    TuioServer* tuio;
-    if ( localClientMode )
-        tuio = new TuioServer();
-    else
-        tuio = new TuioServer("192.168.0.2",3333,false);
-    TuioTime time;
-
     printf("[DEBUG] Process configuration (%s)\n", CONFIG_JSON_PATH);
     map<string, bool> globalConf;
     map<string, float> detectConf;
@@ -216,6 +207,21 @@ int main(int argc, char ** argv)
         cout << "[ERROR] " << e.what() << "\n";
         return 1;
     }
+
+    // **** TUIO Init
+    const bool localClientMode = false;
+    TuioServer* tuio;
+    if ( localClientMode )
+        tuio = new TuioServer();
+    else
+        tuio = new TuioServer("192.168.0.13",3333,false);
+    TuioTime time;
+    tuio->setVerbose(true);
+    int xMin = 0;
+    int xMax = 640;
+    int yMin = 0;
+    int yMax = 480;
+    int id = 3;
     //----------------------------------------------------------------------------------------
     float rh[3];
     vector<Point> handContour, fingerTips;
@@ -238,6 +244,8 @@ int main(int argc, char ** argv)
             circle(depthMatBgr, Point(rh[0], rh[1]), 10, color, thickness);
             // Detection
             g_pHand->detectFingerTips(handContour, fingerTips, &depthMatBgr, detectConf["angleMax"], detectConf["cutoffCoeff"]);
+
+            // Using boost::asio network interface
             //if ( interface.processingUI(rh, fingerTips) != 0 )
                 //printf("[ERROR] Processing\n");
 
@@ -245,17 +253,18 @@ int main(int argc, char ** argv)
             time = TuioTime::getSessionTime();
             tuio->initFrame(time);
             for (unsigned int i = 0; i < fingerTips.size(); i++) {
-                // May be some transformations here
-                float cursorX = fingerTips[i].x;
-                float cursorY = fingerTips[i].y;
-                TuioCursor* cursor = tuio->getClosestTuioCursor(cursorX, cursorY);
-                if ( cursor == NULL || cursor->getTuioTime() == time )
-                    tuio->addTuioCursor(cursorX, cursorY);
-                else
-                    tuio->updateTuioCursor(cursor, cursorX, cursorY);
+                printf("Finger (%d / %d)\n", i, fingerTips.size());
+                float cursorX = (float(fingerTips[i].x) - xMin) / (xMax - xMin);
+                float cursorY = (float(fingerTips[i].y) - yMin) / (yMax - yMin);
+                float cursorZ = rh[2];
+                TuioObject* cursor = tuio->getClosestTuioObject(cursorX, cursorY);
+                if ( cursor == NULL ) 
+                    tuio->addTuioObject(id, cursorX, cursorY, cursorZ);
+                else 
+                    tuio->updateTuioObject(cursor, cursorX, cursorY, cursorZ);
             }
-            tuio->stopUntouchedMovingCursors();
-            tuio->removeUntouchedStoppedCursors();
+            tuio->stopUntouchedMovingObjects();
+            tuio->removeUntouchedStoppedObjects();
             tuio->commitFrame();
         }
         putText(depthMatBgr, trackedInfos, Point(rh[0]-50,rh[1]-50), FONT_HERSHEY_TRIPLEX, 1, Scalar(0, 0, 0, 0), 2);
@@ -267,6 +276,8 @@ int main(int argc, char ** argv)
 	CleanupExit();
     cvDestroyAllWindows();
 }
+
+//TODO gHand->getDepthPoint(x, y), associer un id à chaque doigt, paramètres TUIO en fichier de conf, passer en tuioobject ou tuio3D, utiliser TuioTime pour benchmark
 
 //TODO Configuration file (global functions (like printing stuff), segment algo and control) + Compilation conditionnelle (DEBUG/REALEASE ?)
 //TODO Deportation de calcul (clustering et cartes graphiques à terme)

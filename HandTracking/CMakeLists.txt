@@ -16,7 +16,7 @@ find_package(Threads)
 #include_directories(/home/xavier/dev/kinect/Experimental/test/TUIO)
 include_directories(${OpenCV_INCLUDE_DIRS} ${XnVNite_INCLUDES} ${OpenNI_INCLUDES} ${TUIO_INCLUDES} ${OSC_INCLUDES} ./TUIO ./oscpack) 
 
-set (CMAKE_C_FLAGS "-g -c -msse3 -O2 -DNDEBUG")
+set (CMAKE_C_FLAGS "-c -msse3 -O2 -DNDEBUG")
 
 add_executable (KinectTuio main.cpp ./TUIO/TuioClient.cpp ./TUIO/TuioServer.cpp ./TUIO/TuioTime.cpp ./oscpack/osc/OscTypes.cpp ./oscpack/osc/OscOutboundPacketStream.cpp ./oscpack/osc/OscReceivedElements.cpp ./oscpack/osc/OscPrintReceivedElements.cpp ./oscpack/ip/posix/NetworkingUtils.cpp ./oscpack/ip/posix/UdpSocket.cpp)
 target_link_libraries(KinectTuio ${OpenCV_LIBRARIES} ${XnVNite_LIBS} ${OpenNI_LIBS} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
